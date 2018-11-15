@@ -10,7 +10,9 @@ from relay import Relay
 
 import time
 
-MAX_CELL_VOLT = 3.9
+MAX_CELL_VOLT = 3.82
+MAX_CELL_VOLT_IN = 3.78
+
 MAX_TEMP = 80
 
 def time_stamp():
@@ -28,9 +30,10 @@ class MyLog:
     if not cat == "debug" and not cat == "info":
        print(line)
 
-  def record_row(self,s):
-    self.stats.write(line)   
-
+  def record_row(self,list):
+    #self.stats.write(",".join(list))   
+    print(list)
+    #:self.stats.write(list)
 
 log = MyLog()
 bus = BMSBus('A907CBEU',log)
@@ -38,22 +41,35 @@ mppt = Relay(2)
 
 print("Found {} boards.".format(len(bus.boards)))
 
+mppt_status = 0
+
 while True:
   print("\nChecking modules at {}, will stop all charging if any voltage is above {}...".format(time_stamp(), MAX_CELL_VOLT))
+  if mppt_status == 1:
+    print("Charging is currently ON.")
+  else:
+    print("Charging is currently OFF.")
   for board in bus.boards:
     board.update()
-
-    log.record_row(board.csv_row)
-    
+    log.record_row(board.csv_list())
     if board.address == 14:
       print("Spare battery:")
     print(board)
-    if max(board.cellVolt) > MAX_CELL_VOLT:
-      print("--> STOPPING MPPT CHARGERS until all voltages are below {}".format(MAX_CELL_VOLT))
-      mppt.set(0)
-    elif max(board.temperatures) > MAX_TEMP:
-      print("--> STOPPING MPPT CHARGERS until temperatures are below {}".format(MAX_TEMP))
-      mppt.set(0)
+   
+    if mppt_status == 1: 
+      if max(board.cellVolt) > MAX_CELL_VOLT:
+        print("--> STOPPING MPPT CHARGERS until all voltages are below {}".format(MAX_CELL_VOLT_IN))
+        mppt_status = 0
+      elif max(board.temperatures) > MAX_TEMP:
+        print("--> STOPPING MPPT CHARGERS until temperatures are below {}".format(MAX_TEMP))
+        mppt_status = 0
+      else:
+        print("All good, keeping charger on.")
     else:
-      mppt.set(1)
+      if max(board.cellVolt) < MAX_CELL_VOLT_IN and max(board.temperatures) < MAX_TEMP:
+        print("--> Restarting MPPT CHARGERS because max is below {} and temp is ok too.".format(MAX_CELL_VOLT_IN))
+        mppt_status = 1
+      else:
+        print("Still not good, keeping charger off.")
+  mppt.set(mppt_status)  
   time.sleep(2)

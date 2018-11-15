@@ -74,7 +74,7 @@ class BMSBoard:
 
     def csv_list(self):
         list = [self.address, self.alerts, self.faults, self.cov_faults, self.cuv_faults]
-        list.append()
+        return(list+self.cellVolt+self.temperatures)
 
     def update(self):
         self.readStatus()
