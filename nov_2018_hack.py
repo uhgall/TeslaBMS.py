@@ -28,8 +28,8 @@ class MyLog:
     if not cat == "debug" and not cat == "info":
        print(line)
 
-  def record_row(self,s):
-    self.stats.write(line)   
+  def record_row(self,row):
+    self.stats.write(",".join(row))   
 
 
 log = MyLog()
