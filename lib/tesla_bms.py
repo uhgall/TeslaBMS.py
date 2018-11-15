@@ -29,15 +29,6 @@ REG_ADDR_CTRL =       0x3B
 
 REG_ALERT_STATUS = 0x20
 
-def log(s):
-    print(s)
-
-def info(s):
-    print(s)
-
-def error(s):
-    print("ERROR: {}".format(s))
-
 def hex(arr):
     return(''.join(' {:02x}'.format(x) for x in arr))
 
@@ -64,10 +55,11 @@ def genCRC(data):
     return(crc) 
 
 class BMSBoard:
-    def __init__(self, bus, address):
+    def __init__(self, bus, address,log):
+        self.log = log
         self.bus = bus
         self.address = address
-        info("Created BMSBoard {}.".format(address))
+        self.log("debug","Created BMSBoard {}.".format(address))
 
     def __str__(self):
         s = "BMS Board {} ".format(self.address)
@@ -80,7 +72,7 @@ class BMSBoard:
     def update(self):
         self.readStatus()
         self.readModuleValues()
-        info("Board {} status: {}".format(self.address,self))
+        self.log("info", "Board {} status: {}".format(self.address,self))
 
     def send_and_receive_reply(self, command, param, isWrite = False):
         return(self.bus.send_and_receive_reply_to(self.address,command, param, isWrite))
@@ -98,7 +90,7 @@ class BMSBoard:
         self.send_and_receive_reply(REG_ADC_CONV, 1, True)
         r = self.send_and_receive_reply(REG_GPAI,0x12)
         if (len(r) != 22):
-            error("readModuleValues expected 22 bytes but got {}".format(len(r)))
+            self.log("error","readModuleValues expected 22 bytes but got {}".format(len(r)))
         else:
             # payload is 2 bytes gpai, 2 bytes for each of 6 cell voltages, 
             # 2 bytes for each of two temperatures (18 bytes of data)
@@ -108,27 +100,53 @@ class BMSBoard:
 #       # //turning the temperature wires off here seems to cause weird temperature glitches
         # r = self.send_and_receive_reply(REG_IO_CTRL,0,True) #//turn off temperature measurement pins
 
+    def balance_cells_above_voltage(self,v):
+        # This code is translated from the cpp code to my python API
+        # It's not even clear to me what "balancing" means here... what happens with a cell when it's being "balanced"? 
+        # Does it just mean that during charging, some of the current bypasses the cell? 
+        # ie, a more accurate term would be "bypass_cells" or "shunt_cells" ?
+        # If so, then I think thius code can't work, because most of the batteries would always be "balancing".
+        # The reason is that it's comparing floats, with no tolerance. Almost all cells will always be below the max. 
+        # It should just be bypassing the cell with the HIGHEST voltage, no? 
+        bitmask = 0
+        for i in range(0,5):
+            if self.voltages[i] > v:
+                bitmask += 2**i
+        # //5 second balance limit, if not triggered to balance it will stop after 5 seconds
+        cpp_ignores_reply = self.send_and_receive_reply(REG_BAL_TIME,5,true) 
+
+        # //write balance state to register
+        cpp_ignores_reply = self.send_and_receive_reply(REG_BAL_CTRL,bitmask,true) 
+
+
+        # UG: cpp code does this - reading only. But, then again ignoring the reply
+        cpp_ignores_reply = self.send_and_receive_reply(REG_BAL_TIME,1,false) 
+        cpp_ignores_reply = self.send_and_receive_reply(REG_BAL_CTRL,1,false) 
+
+
 
 class BMSBus:
 
-    def __init__(self):
-        self.device = Device('A907CBEU')
+    def __init__(self,device_name,log):
+        self.log = log
+        self.device = Device(device_name)
+        self.log("info", "Initializing BMSBus on Device {}".format(device_name))
         self.device.baudrate = 612500
         self.device.open()
         self.findBoards()
+
+    def log(self,log,cat,s):
+        self.log.log(cat,s)
 
     def findBoards(self):
         self.boards = []
         for i in range(1,62):
             r = self.send_and_receive_reply_to(i,0,1)
-            if not (r[0] == 2*i and r[1] == 0 and r[2] == 1):
-                error("Unexpected response!")
-            if len(r) > 3:
-                if not (r[4] > 0) :
-                    error("r4 was = {}".format(r[4]))
-                else:
-                    info("BMSBoard {} responded {}".format(i,hex(r[3:])))
-                    self.boards.append(BMSBoard(self,i))
+            if not (r[0] == 2*i and r[1] == 0 and r[2] == 1) and len(r) <= 3:
+                self.log("error", "Unexpected response to init (0,1,{}): {}".format(i,hex(r)))
+            else:
+                self.log("debug","BMSBoard {} responded to init with {}".format(i,hex(r[3:])))
+                self.boards.append(BMSBoard(self,i))
             time.sleep(0.005)
         for board in self.boards:
             board.update()
@@ -136,24 +154,22 @@ class BMSBus:
     def send_and_receive_reply_to(self,destination, command, param, isWrite = False):
         dest = 2*destination +1 if isWrite else 2*destination
         payload = bytearray([dest, command, param])
-        if isWrite: 
-            # original code was doing weird things that I think amounted to nothing. So I simplified.
+        if isWrite:  # original code was doing weird things that I think amounted to nothing. So I simplified.
             crc = genCRC(payload)
-            log("isWrite, therefore adding CRC = {}".format(crc))
+            # isWrite, therefore adding CRC = {}".format(crc))
             payload.append(crc)
         self.device.write(payload)
-        log("Sent: {}".format(hex(payload)))
+        self.log("debug", "Sent: {}".format(hex(payload)))
         time.sleep(0.02)
         reply = bytearray(self.device.read(100))
         if isWrite and genCRC(reply) != 0:
-            error("CRC error: Reply was {}".format(hex(reply)))
+            self.log("error","CRC error: Reply to {} was {}".format(hex(payload), hex(reply)))
         return(reply)
 
-bms = BMSBus()
 
-def test_crc():
-    a = [10,10,10,51]
-    print(genCRC(a))
+# def test_crc():
+#     a = [10,10,10,51]
+#     print(genCRC(a))
 
 #test_crc()
 
