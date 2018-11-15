@@ -55,17 +55,20 @@ def genCRC(data):
     return(crc) 
 
 class BMSBoard:
-    def __init__(self, bus, address,log):
-        self.log = log
+    def __init__(self, bus, address,logger):
+        self.logger = logger
         self.bus = bus
         self.address = address
         self.log("debug","Created BMSBoard {}.".format(address))
 
+    def log(self,cat,s):
+        self.logger.log(cat,s)
+
     def __str__(self):
-        s = "BMS Board {} ".format(self.address)
+        s = "BMS Board {:2d} ".format(self.address)
         s += "Alerts: {}, Faults: {} ".format(self.alerts, self.faults)
-        s += ", Cell Over Voltage Faults: {}, Under: {} ".format(self.cov_faults, self.cuv_faults)
-        s += ", Cell Voltages = "+"".join("{0:.4f}V ".format(v) for v in self.cellVolt)
+        s += " (Over Voltage: {}, Under: {})".format(self.cov_faults, self.cuv_faults)
+        s += ", Voltages = "+"".join("{0:.4f}V ".format(v) for v in self.cellVolt)
         s += ", Temps = {0:.2f}C {1:.2f}C".format(self.temperatures[0],self.temperatures[1])
         return s
 
@@ -127,26 +130,28 @@ class BMSBoard:
 
 class BMSBus:
 
-    def __init__(self,device_name,log):
-        self.log = log
+    def __init__(self,device_name,logger):
+        self.logger = logger
         self.device = Device(device_name)
         self.log("info", "Initializing BMSBus on Device {}".format(device_name))
         self.device.baudrate = 612500
         self.device.open()
         self.findBoards()
 
-    def log(self,log,cat,s):
-        self.log.log(cat,s)
+    def log(self,cat,s):
+        self.logger.log(cat,s)
 
     def findBoards(self):
         self.boards = []
         for i in range(1,62):
             r = self.send_and_receive_reply_to(i,0,1)
-            if not (r[0] == 2*i and r[1] == 0 and r[2] == 1) and len(r) <= 3:
+            if r[0] == 2*i and r[1] == 0 and r[2] == 1 and len(r) == 3:
+                pass # this just means this board does not exist
+            elif len(r) != 5:
                 self.log("error", "Unexpected response to init (0,1,{}): {}".format(i,hex(r)))
             else:
-                self.log("debug","BMSBoard {} responded to init with {}".format(i,hex(r[3:])))
-                self.boards.append(BMSBoard(self,i))
+                self.log("debug","BMSBoard {} responded to init with {}".format(i,hex(r)))
+                self.boards.append(BMSBoard(self,i,self.logger))
             time.sleep(0.005)
         for board in self.boards:
             board.update()

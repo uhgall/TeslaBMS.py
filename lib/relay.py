@@ -16,9 +16,11 @@ class Relay:
     if self.log:
       self.log("info","Turned relay {} to {}.".format(self.id,zero_or_one))
 
-for i in [1,2,3,4]:
-  r = Relay(i)
-  r.set(1)
-  time.sleep(1)
-  r.set(0)
+def test_relays():
+  for i in [1,2,3,4]:
+    r = Relay(i)
+    r.set(1)
+    time.sleep(1)
+    r.set(0)
+    time.sleep(1)
 

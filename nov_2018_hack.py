@@ -6,39 +6,49 @@ import sys
 sys.path.insert(0, './lib')
 from tesla_bms import BMSBus
 from tesla_bms import BMSBoard
+from relay import Relay
 
 import time
 
-MAX_CELL_VOLT = 3.0
+MAX_CELL_VOLT = 3.9
 MAX_TEMP = 80
+
+def time_stamp():
+  return(time.strftime("%Y-%m-%d-%H.%M.%S", time.gmtime()))
 
 class MyLog:
   
   def __init__(self):
-    self.out = open("log/{}.txt".format(self.time_stamp()), "w")
+    self.out = open("log/{}.txt".format(time_stamp()), "w")
 
   def log(self,cat,s):
-    line = "{}, {}, {}".format(s)
+    line = "{}, {}, {}\n".format(time_stamp(),cat,s)
     self.out.write(line)    
+    if not cat == "debug" and not cat == "info":
+       print(line)
 
-  def time_stamp(self):
-    return(time.strftime("%Y-%m-%d-%H.%M.%S", time.gmtime()))
 
 log = MyLog()
 bus = BMSBus('A907CBEU',log)
+mppt = Relay(2)
 
 print("Found {} boards.".format(len(bus.boards)))
 
+
+
 while True:
-  for board in self.boards:
+  print("\nChecking modules at {}, will stop all charging if any voltage is above {}...".format(time_stamp(), MAX_CELL_VOLT))
+  for board in bus.boards:
     board.update()
+    if board.address == 14:
+      print("Spare battery:")
     print(board)
-    mppt = 1 # on 
     if max(board.cellVolt) > MAX_CELL_VOLT:
       print("--> STOPPING MPPT CHARGERS until all voltages are below {}".format(MAX_CELL_VOLT))
-      mppt = 0
-    if max(board.temperatures) > MAX_TEMP:
+      mppt.set(0)
+    elif max(board.temperatures) > MAX_TEMP:
       print("--> STOPPING MPPT CHARGERS until temperatures are below {}".format(MAX_TEMP))
-      mppt = 0
-    relay(1,mppt)
-  time.sleep(10)
+      mppt.set(0)
+    else:
+      mppt.set(1)
+  time.sleep(2)
