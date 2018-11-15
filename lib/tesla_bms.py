@@ -72,6 +72,10 @@ class BMSBoard:
         s += ", Temps = {0:.2f}C {1:.2f}C".format(self.temperatures[0],self.temperatures[1])
         return s
 
+    def csv_list(self):
+        list = [self.address, self.alerts, self.faults, self.cov_faults, self.cuv_faults]
+        list.append()
+
     def update(self):
         self.readStatus()
         self.readModuleValues()

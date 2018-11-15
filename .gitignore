@@ -1,2 +1,3 @@
 log/
 .AppleDouble/
+*.pyc

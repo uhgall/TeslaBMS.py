@@ -20,12 +20,16 @@ class MyLog:
   
   def __init__(self):
     self.out = open("log/{}.txt".format(time_stamp()), "w")
+    self.stats = open("log/{}.csv".format(time_stamp()), "w")
 
   def log(self,cat,s):
     line = "{}, {}, {}\n".format(time_stamp(),cat,s)
     self.out.write(line)    
     if not cat == "debug" and not cat == "info":
        print(line)
+
+  def record_row(self,s):
+    self.stats.write(line)   
 
 
 log = MyLog()
@@ -34,12 +38,13 @@ mppt = Relay(2)
 
 print("Found {} boards.".format(len(bus.boards)))
 
-
-
 while True:
   print("\nChecking modules at {}, will stop all charging if any voltage is above {}...".format(time_stamp(), MAX_CELL_VOLT))
   for board in bus.boards:
     board.update()
+
+    log.record_row(board.csv_row)
+    
     if board.address == 14:
       print("Spare battery:")
     print(board)
