@@ -1,6 +1,12 @@
+# this is a temporay hack specific to my setup.
+# it turns off the PV in for both MPPT controllers whenever the voltage is too high on any cell. 
+
+
 import sys
 sys.path.insert(0, './lib')
-import tesla_bms
+from tesla_bms import BMSBus
+from tesla_bms import BMSBoard
+
 import time
 
 MAX_CELL_VOLT = 3.0
@@ -9,7 +15,7 @@ MAX_TEMP = 80
 class MyLog:
   
   def __init__(self):
-    self.out = open("log/{}.txt".format(time_stamp), "w")
+    self.out = open("log/{}.txt".format(self.time_stamp()), "w")
 
   def log(self,cat,s):
     line = "{}, {}, {}".format(s)

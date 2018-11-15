@@ -1,11 +1,11 @@
 import RPi.GPIO as GPIO
 import time
 
+RELAY_BCM = [None,4,22,6,26]
+
 class Relay:
 
-  RELAY_BCM = [None,4,22,6,26]
-
-  def __init(self,id,log = None):
+  def __init__(self,id,log = None):
     self.id = id
     self.log = log
     GPIO.setmode(GPIO.BCM)
